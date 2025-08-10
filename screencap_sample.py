@@ -9,5 +9,3 @@ sct = mss.mss()
 monitor = sct.monitors[1]
 
 yoloScriptB(sct, monitor)
-
-

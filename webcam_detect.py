@@ -64,7 +64,8 @@ def yoloScript(source):
 
 def yoloScriptB(sct, source):
     # Load pre-trained YOLOv8 model
-    model = YOLO("yolo11n.pt")  # (n/s/m/l/x)
+    # model = YOLO("yolo11n.pt")  # (n/s/m/l/x)
+    model = YOLO("ultralytics/runs/detect/train2/weights/best.pt")
 
     # Initializes DeepSORT tracker
     tracker = DeepSort(max_age=30, n_init=3)

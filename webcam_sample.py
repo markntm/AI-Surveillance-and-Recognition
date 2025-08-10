@@ -9,4 +9,3 @@ if not cap.isOpened():
     exit()
 
 yoloScript(cap)
-
