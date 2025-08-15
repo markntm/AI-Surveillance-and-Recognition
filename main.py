@@ -1,36 +1,19 @@
-# main.py
-# Orchestrates capture -> COCO detect -> tracking -> enqueue for LPR -> overlay results.
 import time
 import cv2
-import numpy as np
 import queue
-import threading
 
 from obj_detector import ObjectDetector
 from obj_tracker import Tracker
 from lpr_worker import LPRWorker
-from utilities import crop_bbox
-import mss  # if you want screen capture
-
-# ---------------- CONFIG ----------------
-YOLO_COCO_PATH = "yolo11n.pt"
-YOLO_LPR_PATH = "ultralytics/runs/detect/train2/weights/best.pt"
-TESSEACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Windows example
-NUM_LPR_WORKERS = 1
-LPR_QUEUE_MAXSIZE = 8
-LPR_COOLDOWN_SECONDS = 3.0   # wait this long before re-processing same track
-PLATE_RETENTION_SECONDS = 60  # keep plate text in cache for this long
-
-# Vehicle class ids (COCO): 2=car,3=motorbike,5=bus,7=truck (verify via model.names)
-VEHICLE_CLASS_IDS = [2, 3, 5, 7]
+from utilities import crop_bbox, extract_dominant_color, infer_human_behavior
+from event_log import log_event, log_person, log_vehicle, HumanBehavior, VehicleBehavior
+from const import constants
 
 # ---------------- Setup ----------------
-
-
-detector = ObjectDetector(YOLO_COCO_PATH, conf=0.35)
+detector = ObjectDetector(constants["YOLO_COCO_PATH"], conf=0.35)
 tracker = Tracker()
 
-lpr_task_q = queue.Queue(maxsize=LPR_QUEUE_MAXSIZE)
+lpr_task_q = queue.Queue(maxsize=constants["LPR_QUEUE_MAXSIZE"])
 lpr_result_q = queue.Queue()
 
 # Cache & bookkeeping
@@ -45,8 +28,8 @@ workers = []
 
 
 def worker_setup():
-    for i in range(NUM_LPR_WORKERS):
-        w = LPRWorker(lpr_task_q, lpr_result_q, YOLO_LPR_PATH, tesseract_cmd=TESSEACT_CMD, conf=0.2, name=f"LPR-{i}")
+    for i in range(constants["NUM_LPR_WORKERS"]):
+        w = LPRWorker(lpr_task_q, lpr_result_q, constants["YOLO_LPR_PATH"], tesseract_cmd=constants["TESSERACT_CMD"], conf=0.2, name=f"LPR-{i}")
         w.start()
         workers.append(w)
 
@@ -67,9 +50,12 @@ def YOLO_programme():
 
             # 3) Display & queue LPR tasks for vehicles
             for tr in tracks:
-                tid = tr["track_id"]
+                tid = str(tr["track_id"])
                 x1,y1,x2,y2 = tr["bbox"]
                 label = tr["label"] if tr["label"] is not None else "obj"
+
+                # --- DB: log/update Event ---
+                event = log_event(tid, label)
 
                 # Draw box + id
                 cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
@@ -77,11 +63,17 @@ def YOLO_programme():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
 
                 # If this track is a vehicle, consider LPR
-                if tr.get("label") in [detector.model.names[i] for i in VEHICLE_CLASS_IDS]:
+                if tr.get("label") in [detector.model.names[i] for i in constants["VEHICLE_CLASS_IDS"]]:
                     # cooldown check
                     now = time.time()
                     last = last_lpr_request.get(tid, 0)
-                    if now - last > LPR_COOLDOWN_SECONDS:
+
+                    # --- DB: vehicle info without plate ---
+                    vehicle_type = label
+                    vehicle_color = extract_dominant_color(frame, tr["bbox"])
+                    log_vehicle(event, vehicle_type, vehicle_color, None, VehicleBehavior.unknown)
+
+                    if now - last > constants["LPR_COOLDOWN_SECONDS"]:
                         # crop vehicle region
                         vehicle_crop = crop_bbox(frame, tr["bbox"], pad=0.05)  # slight padding
                         if vehicle_crop is not None and not lpr_task_q.full():
@@ -90,6 +82,11 @@ def YOLO_programme():
                                 last_lpr_request[tid] = now
                             except queue.Full:
                                 pass
+
+                elif tr.get("label") == "person":
+                    appearance = "unknown"
+                    behavior = infer_human_behavior(tr) or HumanBehavior.unknown
+                    log_person(event, appearance, behavior)
 
             # 4) Handle LPR results that workers produced
             while not lpr_result_q.empty():
@@ -101,12 +98,19 @@ def YOLO_programme():
                     "ts": res["ts"]
                 }
 
+                # --- DB: update vehicle row with plate ---
+                event = log_event(tid, "vehicle")
+                existing = plate_cache[tid]
+                log_vehicle(event, None, None, existing["text"], VehicleBehavior.unknown)
+
+
             # 5) Overlay plate_cache on frame (for tracks still visible)
             for tid, data in list(plate_cache.items()):
                 # Remove stale cache entries
-                if time.time() - data["ts"] > PLATE_RETENTION_SECONDS:
+                if time.time() - data["ts"] > constants["PLATE_RETENTION_SECONDS"]:
                     del plate_cache[tid]
                     continue
+
                 # Find track bbox for overlay
                 track_bbox = next((tr["bbox"] for tr in tracks if tr["track_id"] == tid), None)
                 if track_bbox:

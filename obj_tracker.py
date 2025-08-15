@@ -1,5 +1,7 @@
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
+# not used
+
 class Tracker:
     def __init__(self):
         self.tracker = DeepSort(max_age=30, n_init=3)
