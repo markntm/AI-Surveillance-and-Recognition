@@ -3,15 +3,15 @@ import asyncio
 import json
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
 
 # ---- import your DB models/helpers ----
-from CC_data.event_log import SessionLocal as SessionLocal, Event, Person, Vehicle  # adjust import path if needed
+from central_server.CC_data.event_log import SessionLocal as SessionLocal, Event, Person, Vehicle  # adjust import path if needed
 
 app = FastAPI(title="Surveillance Dashboard", version="0.1")
 

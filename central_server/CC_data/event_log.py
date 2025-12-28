@@ -8,11 +8,21 @@ import enum
 Base = declarative_base()
 DATABASE_URL = "sqlite:///./events.db"
 
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False}
+)
+
+Base.metadata.create_all(engine)
+SessionLocal = sessionmaker(bind=engine)
+session = SessionLocal()
+
 
 class Recognition(enum.Enum):
     recognized = 1
     unrecognized = 2
     unknown = 0
+
 
 class HumanBehavior(enum.Enum):
     walking = 1
@@ -23,12 +33,14 @@ class HumanBehavior(enum.Enum):
     working = 6
     unknown = 0
 
+
 class VehicleBehavior(enum.Enum):
     driving = 1
     speeding = 2
     stopped = 3
     parked = 4
     unknown = 0
+
 
 class Event(Base):
     __tablename__ = 'events'
@@ -42,12 +54,14 @@ class Event(Base):
     threat_score = Column(Integer)
     image_path = Column(String)
 
+
 class Person(Base):
     __tablename__ = 'people'
     person_id = Column(Integer, primary_key=True)
     event_id = Column(Integer, ForeignKey('events.event_id'))
     appearance = Column(String)
     human_behavior = Column(Enum(HumanBehavior))
+
 
 class Vehicle(Base):
     __tablename__ = 'vehicles'
@@ -57,16 +71,6 @@ class Vehicle(Base):
     color = Column(String)
     license_plate = Column(String)
     vehicle_behavior = Column(Enum(VehicleBehavior))
-
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
-
-Base.metadata.create_all(engine)
-SessionLocal = sessionmaker(bind=engine)
-session = SessionLocal()
 
 
 def log_event(object_id, class_id):

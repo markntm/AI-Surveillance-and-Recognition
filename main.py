@@ -3,11 +3,11 @@ import queue
 import requests
 import time
 
-from JN_OBJ_detection.obj_detector import ObjectDetector
-from JN_OBJ_detection.obj_tracker import Tracker
-from JN_LP_detection.lpr_worker import LPRWorker
-from JN_OBJ_detection.utilities import crop_bbox, extract_dominant_color, infer_human_behavior
-from CC_data.event_log import log_event, log_person, log_vehicle, HumanBehavior, VehicleBehavior
+from inference_node.JN_OBJ_detection.obj_detector import ObjectDetector
+from inference_node.JN_OBJ_detection.obj_tracker import Tracker
+from inference_node.JN_LP_detection.lpr_worker import LPRWorker
+from inference_node.JN_OBJ_detection.utilities import crop_bbox, extract_dominant_color, infer_human_behavior
+from central_server.CC_data.event_log import log_event, log_person, log_vehicle, HumanBehavior, VehicleBehavior
 from const import constants
 
 DASHBOARD_BASE = "http://127.0.0.1:8000"  # adjust if server runs elsewhere
