@@ -1,21 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="surveillance" uuid="8f6ff208-32d3-495b-9f1a-a79ca3415dc6">
+    <data-source source="LOCAL" name="events" uuid="c6b478cb-6944-4d68-af56-31d90aa5f9d9">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:C:\Users\mrmar\IdeaProjects\yolov8-webcam\instance\surveillance.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:C:\Users\mrmar\IdeaProjects\AI-Surveillance-and-Recognition\CC_data\events.db</jdbc-url>
       <jdbc-additional-properties>
         <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
       </jdbc-additional-properties>
       <working-dir>$ProjectFileDir$</working-dir>
+      <libraries>
+        <library>
+          <url>file://$APPLICATION_CONFIG_DIR$/jdbc-drivers/Xerial SQLiteJDBC/3.45.1/org/xerial/sqlite-jdbc/3.45.1.0/sqlite-jdbc-3.45.1.0.jar</url>
+        </library>
+        <library>
+          <url>file://$APPLICATION_CONFIG_DIR$/jdbc-drivers/Xerial SQLiteJDBC/3.45.1/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar</url>
+        </library>
+      </libraries>
     </data-source>
-    <data-source source="LOCAL" name="surveillance [2]" uuid="833f9b5c-8a8d-4b1c-8ce7-7317472f00f4">
+    <data-source source="LOCAL" name="events [2]" uuid="28d78f61-e588-4612-b6aa-16e925f20a90">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:C:\Users\mrmar\IdeaProjects\yolov8-webcam\surveillance.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:C:\Users\mrmar\IdeaProjects\AI-Surveillance-and-Recognition\events.db</jdbc-url>
       <jdbc-additional-properties>
         <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
       </jdbc-additional-properties>

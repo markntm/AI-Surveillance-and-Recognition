@@ -3,7 +3,6 @@ import asyncio
 import json
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,11 +11,11 @@ from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
 
 # ---- import your DB models/helpers ----
-from event_log import Session as DBSession, Event, Person, Vehicle  # adjust import path if needed
+from CC_data.event_log import SessionLocal as SessionLocal, Event, Person, Vehicle  # adjust import path if needed
 
 app = FastAPI(title="Surveillance Dashboard", version="0.1")
 
-# If you open client from another origin/port, enable CORS here
+# If you open the client from another origin/port, enable CORS here
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten for production
@@ -35,7 +34,7 @@ async def index():
 
 # ---------- DB Session Dependency ----------
 def get_db():
-    db = DBSession()
+    db = SessionLocal()
     try:
         yield db
     finally:

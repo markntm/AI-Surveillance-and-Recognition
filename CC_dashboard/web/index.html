@@ -136,10 +136,27 @@
             <div>Confidence: <span class="conf">${Number(v.confidence).toFixed(2)}</span></div>
             ${v.plate ? `<div>Plate: <span class="lp">${v.plate}</span></div>` : ``}
           </div>
-          <div class="ts">${new Date(v.ts).toLocaleTimeString()}</div>
+          <div class="ts">${formatTimestamp(v.ts)}</div>
         `;
             liveList.appendChild(el);
         }
+    }
+
+    function formatTimestamp(ts) {
+        // If it's already a number (epoch), convert; otherwise assume it's ISO string
+        const d = new Date(ts);
+
+        // Options for formatting
+        const options = {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            year: "numeric",
+            month: "short",   // e.g. Aug
+            day: "numeric"
+        };
+
+        return d.toLocaleString("en-US", options);
     }
 
     async function fetchMetricsInitial() {
@@ -167,8 +184,8 @@
               <td>${row.class_type}</td>
               <td>${plate ? `<span class="lp">${plate}</span>` : ""}</td>
               <td>${vtype || ""}</td>
-              <td>${row.time_first_detected || ""}</td>
-              <td>${row.last_seen || ""}</td>
+              <td>${row.time_first_detected ? formatTimestamp(row.time_first_detected) : ""}</td>
+              <td>${row.last_seen ? formatTimestamp(row.last_seen) : ""}</td>
             </tr>
           `;
             }).join("");

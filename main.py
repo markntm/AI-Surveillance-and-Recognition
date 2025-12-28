@@ -1,13 +1,51 @@
-import time
 import cv2
 import queue
+import requests
+import time
 
-from obj_detector import ObjectDetector
-from obj_tracker import Tracker
-from lpr_worker import LPRWorker
-from utilities import crop_bbox, extract_dominant_color, infer_human_behavior
-from event_log import log_event, log_person, log_vehicle, HumanBehavior, VehicleBehavior
+from JN_OBJ_detection.obj_detector import ObjectDetector
+from JN_OBJ_detection.obj_tracker import Tracker
+from JN_LP_detection.lpr_worker import LPRWorker
+from JN_OBJ_detection.utilities import crop_bbox, extract_dominant_color, infer_human_behavior
+from CC_data.event_log import log_event, log_person, log_vehicle, HumanBehavior, VehicleBehavior
 from const import constants
+
+DASHBOARD_BASE = "http://127.0.0.1:8000"  # adjust if server runs elsewhere
+_last_metrics_post = 0
+_last_live_sent = {}  # track_id -> ts
+LIVE_THROTTLE_SEC = 0.5  # avoid spamming the server
+
+def post_telemetry(workers_active: int, lpr_queue_size: int, active_tracks: int):
+    global _last_metrics_post
+    now = time.time()
+    if now - _last_metrics_post < 0.8:  # throttle ~1/s
+        return
+    _last_metrics_post = now
+    try:
+        requests.post(f"{DASHBOARD_BASE}/api/ingest/telemetry", json={
+            "workers_active": workers_active,
+            "lpr_queue_size": lpr_queue_size,
+            "active_tracks": active_tracks
+        }, timeout=0.4)
+    except Exception:
+        pass
+
+def post_live(track_id: str, label: str, confidence: float, license_plate: str | None = None):
+    now = time.time()
+    last = _last_live_sent.get(track_id, 0)
+    if now - last < LIVE_THROTTLE_SEC and license_plate is None:
+        return
+    _last_live_sent[track_id] = now
+    try:
+        requests.post(f"{DASHBOARD_BASE}/api/ingest/live", json={
+            "track_id": str(track_id),
+            "label": label,
+            "confidence": float(confidence),
+            "license_plate": license_plate
+        }, timeout=0.4)
+    except Exception:
+        pass
+
 
 # ---------------- Setup ----------------
 detector = ObjectDetector(constants["YOLO_COCO_PATH"], conf=0.35)
@@ -48,14 +86,23 @@ def YOLO_programme():
             # 2) Track (DeepSORT)
             tracks = tracker.update(detections, frame)
 
+            post_telemetry(
+                workers_active=len(workers),
+                lpr_queue_size=lpr_task_q.qsize(),
+                active_tracks=len(tracks)
+            )
+
             # 3) Display & queue LPR tasks for vehicles
             for tr in tracks:
                 tid = str(tr["track_id"])
                 x1,y1,x2,y2 = tr["bbox"]
                 label = tr["label"] if tr["label"] is not None else "obj"
+                conf = float(tr["conf"] or 0.0)  # dashboard
+                post_live(tid, label, conf)  # dashboard
 
                 # --- DB: log/update Event ---
                 event = log_event(tid, label)
+                print("Sending Event Payload: ", event)
 
                 # Draw box + id
                 cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
@@ -91,12 +138,14 @@ def YOLO_programme():
             # 4) Handle LPR results that workers produced
             while not lpr_result_q.empty():
                 res = lpr_result_q.get_nowait()
-                tid = res["track_id"]
+                tid = str(res["track_id"])
                 plate_cache[tid] = {
                     "text": res["plate_text"],
                     "conf": res["plate_conf"],
                     "ts": res["ts"]
                 }
+                # Also push the plate to dashboard live stream
+                post_live(tid, "vehicle", float(res["plate_conf"] or 0.0), license_plate=res["plate_text"])
 
                 # --- DB: update vehicle row with plate ---
                 event = log_event(tid, "vehicle")

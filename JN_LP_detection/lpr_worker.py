@@ -16,7 +16,7 @@ class LPRWorker(threading.Thread):
         self.tesseract_cmd = tesseract_cmd
 
     def run(self):
-        # Load LPR model inside the thread to avoid sharing model across threads
+        # Load an LPR model inside the thread to avoid sharing model across threads
         lpr_model = YOLO(self.lpr_model_path)
 
         if self.tesseract_cmd:

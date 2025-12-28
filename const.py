@@ -14,5 +14,3 @@ constants = {
     # Vehicle class ids (COCO): 2=car,3=motorbike,5=bus,7=truck (verify via model.names)
     "VEHICLE_CLASS_IDS": [2, 3, 5, 7]
 }
-
-
