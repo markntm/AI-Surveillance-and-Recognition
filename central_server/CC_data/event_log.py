@@ -1,55 +1,112 @@
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
+
+from models import Event, DetectedObject, Vehicle, Recognition, Behavior, VehicleFunction
 
 
-def log_event(object_id, class_id):
-    """Create event if new, else update last_seen"""
-    event = session.query(Event).filter_by(object_id=object_id).first()
-    now = datetime.datetime.now(datetime.UTC)
+# ---------- Write ----------
+
+def create_event(
+        db: Session,
+        camera_id: str,
+        threat_score: int,
+        image_path: Optional[str] = None,
+        timestamp: Optional[datetime] = None
+) -> Event:
+
+    """
+    Create a new Event row.
+    """
+
+    event = Event(
+        camera_id=camera_id,
+        threat_score=threat_score,
+        image_path=image_path,
+        timestamp=timestamp or datetime.utcnow()
+    )
+
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+def add_detected_object(
+        db: Session,
+        event_id: int,
+        object_type: str,
+        behavior: Behavior,
+        recognition: Recognition,
+        confidence: float
+) -> DetectedObject:
+
+    """
+    Add a detected object to an existing event.
+    """
+
+    obj = DetectedObject(
+        event_id=event_id,
+        object_type=object_type,
+        behavior=behavior,
+        recognition=recognition,
+        confidence=confidence
+    )
+
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def add_vehicle(
+        db: Session,
+        object_id: int,
+        license_plate: str,
+        primary_color: str,
+        vehicle_type: str,
+        vehicle_function: VehicleFunction
+) -> Vehicle:
+
+    """
+    Attach vehicle-specific metadata to a detected object.
+    """
+
+    vehicle = Vehicle(
+        object_id=object_id,
+        license_plate=license_plate,
+        primary_color=primary_color,
+        vehicle_type=vehicle_type,
+        vehicle_function=vehicle_function
+    )
+
+    db.add(vehicle)
+    db.commit()
+    db.refresh(vehicle)
+    return vehicle
+
+
+# ---------- Read ----------
+
+def get_event_by_id(db: Session, event_id: int) -> Optional[Event]:
+    return db.query(Event).filter(Event.id == event_id).first()
+
+
+def get_recent_events(db: Session, limit: int = 100) -> List[Event]:
+    return (db.query(Event).order_by(Event.timestamp.desc()).limit(limit).all())
+
+
+def get_events_by_camera(db: Session, camera_id: str, limit: int = 100) -> List[Event]:
+    return (db.query(Event).filter(Event.camera_id == camera_id).order_by(Event.timestamp.desc()).limit(limit).all())
+
+
+# ---------- Delete ----------
+
+def delete_event(db: Session, event_id: int) -> bool:
+    event = get_event_by_id(db, event_id)
     if not event:
-        event = Event(
-            object_id=object_id,
-            class_id=class_id,
-            last_seen=now
-        )
-        session.add(event)
-        session.commit()
-        return event
-    else:
-        event.last_seen = now
-        session.commit()
-        return event
+        return False
 
-
-def log_person(event, appearance, behavior):
-    """Log/update person data linked to event"""
-    person = session.query(Person).filter_by(event_id=event.event_id).first()
-    if not person:
-        person = Person(
-            event_id=event.event_id,
-            appearance=appearance,
-            human_behavior=behavior
-        )
-        session.add(person)
-    else:
-        person.appearance = appearance
-        person.human_behavior = behavior
-    session.commit()
-
-
-def log_vehicle(event, vehicle_type, color, license_plate, behavior):
-    """Log/update vehicle data linked to event"""
-    vehicle = session.query(Vehicle).filter_by(event_id=event.event_id).first()
-    if not vehicle:
-        vehicle = Vehicle(
-            event_id=event.event_id,
-            vehicle_type=vehicle_type,
-            color=color,
-            license_plate=license_plate,
-            vehicle_behavior=behavior
-        )
-        session.add(vehicle)
-    else:
-        vehicle.vehicle_type = vehicle_type
-        vehicle.color = color
-        vehicle.license_plate = license_plate
-        vehicle.vehicle_behavior = behavior
-    session.commit()
+    db.delete(event)
+    db.commit()
+    return True

@@ -1,35 +1,34 @@
-import asyncio
-import json
-from datetime import datetime
-from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from fastapi import FastAPI, Depends, Header, HTTPException
 from starlette.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+import os
 
-from central_server.CC_data.database import SessionLocal
+from central_server.CC_data.database import engine, Base, SessionLocal
+from central_server.CC_data.event_log import *
+from central_server.CC_data.models import Behavior, Recognition, VehicleFunction
+from central_server.CC_data.schemas import EventIn
+from secret import dev_key, allowed_IP
 
 
 app = FastAPI(title="Surveillance Dashboard", version="0.1")
+Base.metadata.create_all(bind=engine)
 
-
-# If you open the client from another origin/port, enable CORS here
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten for production
+    allow_origins=[allowed_IP],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 
-
-# Serve the standalone client
-app.mount("/static", StaticFiles(directory="server/web"), name="static")
+API_KEY = os.getenv("SURVEILLANCE_API_KEY", dev_key)
 
 
-# ---------- DB Session Dependency ----------
+def verify_api_key(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -38,136 +37,36 @@ def get_db():
         db.close()
 
 
-@app.get("/")
-def dashboard():
-    return FileResponse("CC_dashboard/static/index.html")
-
-
-# ---------- WebSocket Manager ----------
-class ConnectionManager:
-    def __init__(self):
-        self.active: List[WebSocket] = []
-
-    async def connect(self, ws: WebSocket):
-        await ws.accept()
-        self.active.append(ws)
-
-    def disconnect(self, ws: WebSocket):
-        if ws in self.active:
-            self.active.remove(ws)
-
-    async def broadcast(self, message: Dict[str, Any]):
-        if not self.active:
-            return
-        data = json.dumps(message, default=str)
-        # broadcast to all; remove dead connections
-        stale = []
-        for ws in self.active:
-            try:
-                await ws.send_text(data)
-            except Exception:
-                stale.append(ws)
-        for ws in stale:
-            self.disconnect(ws)
-
-manager = ConnectionManager()
-
-# ---------- In-memory metrics (live only) ----------
-metrics = {
-    "workers_active": 0,
-    "lpr_queue_size": 0,
-    "active_tracks": 0,
-    "last_update": None
-}
-
-# ---------- Pydantic models for ingest ----------
-class TelemetryIn(BaseModel):
-    workers_active: int
-    lpr_queue_size: int
-    active_tracks: int
-
-class LiveDetectionIn(BaseModel):
-    track_id: str
-    label: str
-    confidence: float
-    license_plate: Optional[str] = None
-
-
-# ---------- WebSocket endpoint ----------
-@app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
-    await manager.connect(ws)
-    try:
-        while True:
-            # This server is push-only; if you want client->server messages,
-            # you can await ws.receive_text() here.
-            await asyncio.sleep(60)
-    except WebSocketDisconnect:
-        manager.disconnect(ws)
-
-
-# ---------- Telemetry ingest (from detection pipeline) ----------
-@app.post("/api/ingest/telemetry")
-async def ingest_telemetry(t: TelemetryIn):
-    metrics["workers_active"] = t.workers_active
-    metrics["lpr_queue_size"] = t.lpr_queue_size
-    metrics["active_tracks"] = t.active_tracks
-    metrics["last_update"] = datetime.utcnow()
-
-    await manager.broadcast({"type": "metrics", "data": metrics})
-    return {"status": "ok"}
-
-
-# ---------- Live detection ingest (from detection pipeline) ----------
-@app.post("/api/ingest/live")
-async def ingest_live(d: LiveDetectionIn):
-    payload = {
-        "track_id": d.track_id,
-        "label": d.label,
-        "confidence": d.confidence,
-        "license_plate": d.license_plate
-    }
-    await manager.broadcast({"type": "live", "data": payload})
-    return {"status": "ok"}
-
-
-# ---------- DB endpoints: recent events ----------
-@app.get("/api/events/recent")
-def get_recent_events(limit: int = 100, db: Session = Depends(get_db)):
-    """
-    Returns recent events joined with subclass tables when present.
-    """
-    q = (
-        db.query(Event, Vehicle, Person)
-        .outerjoin(Vehicle, Vehicle.event_id == Event.event_id)
-        .outerjoin(Person, Person.event_id == Event.event_id)
-        .order_by(Event.last_seen.desc())
-        .limit(limit)
-        .all()
+@app.post("/api/events", dependencies=[Depends(verify_api_key)])
+def ingest_event(event_in: EventIn, db: Session = Depends(get_db)):
+    # 1. Create Event
+    event = create_event(
+        db=db,
+        camera_id=event_in.camera_id,
+        threat_score=event_in.threat_score,
+        image_path=event_in.image_path
     )
 
-    rows = []
-    for ev, veh, per in q:
-        rows.append({
-            "event_id": ev.event_id,
-            "object_id": ev.object_id,
-            "class_type": ev.class_type,
-            "time_first_detected": ev.time_first_detected,
-            "last_seen": ev.last_seen,
-            "vehicle": {
-                "vehicle_type": getattr(veh, "vehicle_type", None),
-                "color": getattr(veh, "color", None),
-                "license_plate": getattr(veh, "license_plate", None),
-            } if veh else None,
-            "person": {
-                "appearance": getattr(per, "appearance", None),
-                "behavior": getattr(per, "human_behavior", None).name if per and per.human_behavior else None
-            } if per else None
-        })
-    return rows
+    # 2. Add detected objects
+    for obj in event_in.objects:
+        detected = add_detected_object(
+            db=db,
+            event_id=event.id,
+            object_type=obj.object_type,
+            behavior=Behavior[obj.behavior],
+            recognition=Recognition[obj.recognition],
+            confidence=obj.confidence
+        )
 
+        # 3. Optional vehicle
+        if obj.vehicle:
+            add_vehicle(
+                db=db,
+                object_id=detected.id,
+                license_plate=obj.vehicle.license_plate,
+                primary_color=obj.vehicle.primary_color,
+                vehicle_type=obj.vehicle.vehicle_type,
+                vehicle_function=VehicleFunction[obj.vehicle.vehicle_function]
+            )
 
-# ---------- Simple metrics GET (for initial load) ----------
-@app.get("/api/metrics")
-def get_metrics():
-    return metrics
+    return {"status": "ok", "event_id": event.id}

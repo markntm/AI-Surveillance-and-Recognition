@@ -8,8 +8,8 @@ from database import Base
 
 class Recognition(enum.Enum):
     unknown = 0
-    recognised = 1
-    unrecognised = 2
+    recognized = 1
+    unrecognized = 2
 
 
 class Behavior(enum.Enum):
@@ -33,7 +33,7 @@ class Event(Base):
     id = Column(Integer, primary_key=True)
 
     camera_id = Column(String, nullable=False)  # name of street or location of surveillance
-    timestamp = Column(DateTime, default=datetime.now(), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     threat_score = Column(Integer, default=0)
     image_path = Column(String, default=None)
 
@@ -49,7 +49,7 @@ class DetectedObject(Base):
     object_type = Column(String, nullable=False)  # YOLO label of the detected object (e.g., person)
     behavior = Column(Enum(Behavior), nullable=False)
     recognition = Column(Enum(Recognition), nullable=False)
-    confidence = Column(Float, nullable=False)
+    confidence = Column(Float, nullable=False)  # percentage confidence from 0.00 to 1.00
 
     event = relationship("Event", back_populates="objects")
     vehicle = relationship("Vehicle", uselist=False, back_populates="object")
