@@ -1,4 +1,3 @@
-# server/app.py
 import asyncio
 import json
 from datetime import datetime
@@ -10,10 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
 
-# ---- import your DB models/helpers ----
-from central_server.CC_data.event_log import SessionLocal as SessionLocal, Event, Person, Vehicle  # adjust import path if needed
+from central_server.CC_data.database import SessionLocal
+
 
 app = FastAPI(title="Surveillance Dashboard", version="0.1")
+
 
 # If you open the client from another origin/port, enable CORS here
 app.add_middleware(
@@ -24,12 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Serve the standalone client
 app.mount("/static", StaticFiles(directory="server/web"), name="static")
-
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    return FileResponse("server/web/index.html")
 
 
 # ---------- DB Session Dependency ----------
@@ -39,6 +36,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@app.get("/")
+def dashboard():
+    return FileResponse("CC_dashboard/static/index.html")
 
 
 # ---------- WebSocket Manager ----------
