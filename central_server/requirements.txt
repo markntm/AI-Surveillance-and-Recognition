@@ -1,0 +1,15 @@
+# --- Web framework ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# --- Database ---
+sqlalchemy>=2.0
+pydantic>=2.6
+
+# --- Optional utilities ---
+python-multipart>=0.0.9   # needed if you upload images/files later
+python-dotenv>=1.0        # env vars for secrets/config
+aiofiles>=23.2            # static file serving (HTML dashboard)
+
+# --- Time & typing safety ---
+typing-extensions>=4.10
