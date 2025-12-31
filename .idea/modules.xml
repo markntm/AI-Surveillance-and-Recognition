@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/AI-Surveillance-Recognition.iml" filepath="$PROJECT_DIR$/AI-Surveillance-Recognition.iml" />
+      <module fileurl="file://$PROJECT_DIR$/AI-Surveillance-and-Recognition.iml" filepath="$PROJECT_DIR$/AI-Surveillance-and-Recognition.iml" />
     </modules>
   </component>
 </project>
