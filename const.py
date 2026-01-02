@@ -1,4 +1,4 @@
-from secret import recognized_license_plates, unrecognized_license_plates
+from central_server.secret import recognized_license_plates, unrecognized_license_plates
 
 constants = {
     "recLP": recognized_license_plates,

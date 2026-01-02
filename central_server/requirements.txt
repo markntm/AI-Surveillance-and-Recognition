@@ -13,3 +13,6 @@ aiofiles>=23.2            # static file serving (HTML dashboard)
 
 # --- Time & typing safety ---
 typing-extensions>=4.10
+
+starlette
+jinja2

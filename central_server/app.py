@@ -1,15 +1,19 @@
-from fastapi import FastAPI, Depends, Header, HTTPException
+from fastapi import FastAPI, Depends, Header, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 import os
 
-from central_server.CC_data.database import engine, Base, SessionLocal
-from central_server.CC_data.event_log import *
-from central_server.CC_data.models import Behavior, Recognition, VehicleFunction
-from central_server.CC_data.schemas import EventIn
+from CC_data.database import engine, Base, SessionLocal
+from CC_data.event_log import *
+from CC_data.models import Behavior, Recognition, VehicleFunction, Event
+from CC_data.schemas import EventIn
 from secret import dev_key, allowed_IP
 
 
 app = FastAPI(title="Surveillance Dashboard", version="0.1")
+app.mount("/static", StaticFiles(directory="CC_dashboard/static"), name="static")
+templates = Jinja2Templates(directory="CC_dashboard/templates")
 Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
@@ -36,15 +40,59 @@ def get_db():
         db.close()
 
 
+@app.get("/", include_in_schema=False)
+def dashboard(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+@app.get("/api/status")
+def get_status(db: Session = Depends(get_db)):
+    """
+    High-level system status for dashboard health checks.
+    """
+
+    last_event = (
+        db.query(Event)
+        .order_by(Event.timestamp.desc())
+        .first()
+    )
+
+    total_events = db.query(Event).count()
+
+    return {
+        "server": "online",
+        "total_events": total_events,
+        "last_event_time": last_event.timestamp.isoformat() if last_event else None
+    }
+
+
 @app.get("/api/events")
-def get_events(limit: int = 50, db: Session = Depends(get_db)):
+def get_events(
+        limit: int = 10,
+        offset: int = 0,
+        camera_id: Optional[str] = None,
+        min_threat: Optional[int] = None,
+        db: Session = Depends(get_db)
+):
     """
     Retrieve recent surveillance events with detected objects and vehicles.
     """
 
+    query = db.query(Event)
+
+    # ---- Filtering ----
+    if camera_id:
+        query = query.filter(Event.camera_id == camera_id)
+
+    if min_threat is not None:
+        query = query.filter(Event.threat_score >= min_threat)
+
+    total_count = query.count()
+
     events = (
-        db.query(Event)
+        query
         .order_by(Event.timestamp.desc())
+        .offset(offset)
         .limit(limit)
         .all()
     )
@@ -82,7 +130,12 @@ def get_events(limit: int = 50, db: Session = Depends(get_db)):
 
         response.append(event_data)
 
-    return response
+    return {
+        "total": total_count,
+        "limit": limit,
+        "offset": offset,
+        "events": response
+    }
 
 
 @app.post("/api/events", dependencies=[Depends(verify_api_key)])
