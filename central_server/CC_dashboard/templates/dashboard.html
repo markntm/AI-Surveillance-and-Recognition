@@ -85,11 +85,22 @@
     <nav>
         <button onclick="showView('events')">Events</button>
         <button onclick="showView('cameras')">Cameras</button>
-        <button onclick="showView('stats')">Stats</button>
+        <button onclick="showView('analytics')">Analytics</button>
     </nav>
 </header>
 
 <div class="container">
+    <div class="filters">
+        <select id="threatFilter">
+            <option value="">All Threats</option>
+            <option value="0">Low</option>
+            <option value="1">Medium</option>
+            <option value="2">High</option>
+        </select>
+
+        <input type="text" id="cameraFilter" placeholder="Camera ID">
+    </div>
+
     <div class="card">
         <div style="display:flex; gap:10px; margin-bottom:12px;">
             <button onclick="showView('events')">Events</button>
@@ -99,7 +110,20 @@
 
         <div id="view-events">
             <h3 class="section-title">Recent Events</h3>
-            <div id="events"></div>
+            <div id="events" class="view">
+                <table id="eventsTable">
+                    <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Camera</th>
+                        <th>Threat</th>
+                        <th>Objects</th>
+                        <th>Vehicle</th>
+                    </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
 
         <div id="view-stats" style="display:none">
@@ -152,54 +176,24 @@
     }
 
     function renderEvents(events) {
-        const root = document.getElementById("events");
-        root.innerHTML = "";
+        const tbody = document.querySelector("#eventsTable tbody");
+        tbody.innerHTML = "";
 
         for (const ev of events) {
-            const div = document.createElement("div");
-            div.className = "event";
-            div.onclick = () => openEvent(ev.id);
+            const tr = document.createElement("tr");
 
-            div.innerHTML = `
-      <div class="event-header">
-        <div>
-          <span class="badge">Camera: ${ev.camera_id}</span>
-          <span class="badge threat-${ev.threat_score}">
-            Threat ${ev.threat_score}
-          </span>
-        </div>
-        <div class="muted">${formatTime(ev.timestamp)}</div>
-      </div>
-    `;
+            const objects = ev.objects.map(o => o.object_type).join(", ");
+            const vehicle = ev.objects.find(o => o.vehicle)?.vehicle?.license_plate || "-";
 
-            for (const obj of ev.objects) {
-                const o = document.createElement("div");
-                o.className = "object";
-                o.innerHTML = `
-        <div>
-          <b>${obj.object_type}</b>
-          (${obj.behavior}, ${obj.recognition})
-          — conf ${obj.confidence.toFixed(2)}
-        </div>
-        ${obj.vehicle ? `
-          <div class="muted">
-            Vehicle:
-            <span class="lp">${obj.vehicle.license_plate}</span>
-            | ${obj.vehicle.primary_color}
-            | ${obj.vehicle.vehicle_type}
-            | ${obj.vehicle.vehicle_function}
-          </div>` : ``}
-      `;
-                div.appendChild(o);
-            }
+            tr.innerHTML = `
+            <td>${formatTime(ev.timestamp)}</td>
+            <td>${ev.camera_id}</td>
+            <td class="threat-${ev.threat_score}">${ev.threat_score}</td>
+            <td>${objects}</td>
+            <td class="lp">${vehicle}</td>
+        `;
 
-            if (ev.image_path) {
-                const img = document.createElement("img");
-                img.src = "/static/" + ev.image_path;
-                div.appendChild(img);
-            }
-
-            root.appendChild(div);
+            tbody.appendChild(tr);
         }
     }
 

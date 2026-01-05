@@ -15,9 +15,7 @@ def create_event(
         timestamp: Optional[datetime] = None
 ) -> Event:
 
-    """
-    Create a new Event row.
-    """
+    """Create a new Event row."""
 
     event = Event(
         camera_id=camera_id,
@@ -41,9 +39,7 @@ def add_detected_object(
         confidence: float
 ) -> DetectedObject:
 
-    """
-    Add a detected object to an existing event.
-    """
+    """Add a detected object to an existing event."""
 
     obj = DetectedObject(
         event_id=event_id,
@@ -68,9 +64,7 @@ def add_vehicle(
         vehicle_function: VehicleFunction
 ) -> Vehicle:
 
-    """
-    Attach vehicle-specific metadata to a detected object.
-    """
+    """Attach vehicle-specific metadata to a detected object."""
 
     vehicle = Vehicle(
         object_id=object_id,

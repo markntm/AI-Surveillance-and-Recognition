@@ -7,13 +7,14 @@ from inference_node.JN_OBJ_detection.obj_detector import ObjectDetector
 from inference_node.JN_OBJ_detection.obj_tracker import Tracker
 from inference_node.JN_LP_detection.lpr_worker import LPRWorker
 from inference_node.JN_OBJ_detection.utilities import crop_bbox, extract_dominant_color, infer_human_behavior
-from central_server.CC_data.event_log import log_event, log_person, log_vehicle, HumanBehavior, VehicleBehavior
-from const import constants
+from inference_node.event_out import emit
+from inference_node.const import constants
 
-DASHBOARD_BASE = "http://127.0.0.1:8000"  # adjust if server runs elsewhere
+
 _last_metrics_post = 0
 _last_live_sent = {}  # track_id -> ts
 LIVE_THROTTLE_SEC = 0.5  # avoid spamming the server
+
 
 def post_telemetry(workers_active: int, lpr_queue_size: int, active_tracks: int):
     global _last_metrics_post
@@ -29,6 +30,7 @@ def post_telemetry(workers_active: int, lpr_queue_size: int, active_tracks: int)
         }, timeout=0.4)
     except Exception:
         pass
+
 
 def post_live(track_id: str, label: str, confidence: float, license_plate: str | None = None):
     now = time.time()
@@ -101,8 +103,15 @@ def YOLO_programme():
                 post_live(tid, label, conf)  # dashboard
 
                 # --- DB: log/update Event ---
-                event = log_event(tid, label)
-                print("Sending Event Payload: ", event)
+                event_payload = {
+                    "type": "object_detected",
+                    "camera_id": "cam_01",
+                    "track_id": tid,
+                    "object_type": label,
+                    "confidence": conf
+                }
+                emit(event_payload)
+                print("Sending Event Payload: ", event_payload)
 
                 # Draw box + id
                 cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
@@ -116,9 +125,14 @@ def YOLO_programme():
                     last = last_lpr_request.get(tid, 0)
 
                     # --- DB: vehicle info without plate ---
-                    vehicle_type = label
-                    vehicle_color = extract_dominant_color(frame, tr["bbox"])
-                    log_vehicle(event, vehicle_type, vehicle_color, None, VehicleBehavior.unknown)
+                    vehicle_payload = {
+                        "type": "vehicle_update",
+                        "camera_id": "cam_01",
+                        "track_id": tid,
+                        "vehicle_type": label,
+                        "primary_color": extract_dominant_color(frame, tr["bbox"])
+                    }
+                    emit(vehicle_payload)
 
                     if now - last > constants["LPR_COOLDOWN_SECONDS"]:
                         # crop vehicle region
@@ -131,9 +145,12 @@ def YOLO_programme():
                                 pass
 
                 elif tr.get("label") == "person":
-                    appearance = "unknown"
-                    behavior = infer_human_behavior(tr) or HumanBehavior.unknown
-                    log_person(event, appearance, behavior)
+                    person_payload = {
+                        "type": "person_update",
+                        "camera_id": "cam_01",
+                        "track_id": tid,
+                        "behavior": infer_human_behavior(tr) or None
+                    }
 
             # 4) Handle LPR results that workers produced
             while not lpr_result_q.empty():

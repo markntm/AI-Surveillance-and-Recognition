@@ -47,9 +47,7 @@ def dashboard(request: Request):
 
 @app.get("/api/status")
 def get_status(db: Session = Depends(get_db)):
-    """
-    High-level system status for dashboard health checks.
-    """
+    """High-level system status for dashboard health checks."""
 
     last_event = (
         db.query(Event)
@@ -74,9 +72,7 @@ def get_events(
         min_threat: Optional[int] = None,
         db: Session = Depends(get_db)
 ):
-    """
-    Retrieve recent surveillance events with detected objects and vehicles.
-    """
+    """Retrieve recent surveillance events with detected objects and vehicles."""
 
     query = db.query(Event)
 

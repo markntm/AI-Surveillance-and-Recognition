@@ -1,0 +1,36 @@
+nav button {
+    background:none;
+    border:1px solid #334155;
+    color:var(--fg);
+    padding:6px 12px;
+    border-radius:8px;
+    cursor:pointer;
+}
+nav button:hover {
+    border-color:var(--accent);
+}
+table {
+    width:100%;
+    border-collapse:collapse;
+}
+th, td {
+    padding:8px;
+    border-bottom:1px solid #1f2937;
+    text-align:left;
+}
+th {
+    color:var(--muted);
+    font-size:12px;
+}
+.filters {
+    display:flex;
+    gap:10px;
+    margin-bottom:12px;
+}
+.filters input, .filters select {
+    background:#020617;
+    border:1px solid #334155;
+    color:var(--fg);
+    padding:6px;
+    border-radius:6px;
+}
