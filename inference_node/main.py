@@ -16,6 +16,11 @@ _last_live_sent = {}  # track_id -> ts
 LIVE_THROTTLE_SEC = 1.0  # avoid spamming the server
 
 
+seen_tracks = set()
+vehicle_sent = set()
+person_sent = set()
+
+
 # ---------------- Setup ----------------
 detector = ObjectDetector(constants["YOLO_COCO_PATH"], conf=0.35)
 tracker = Tracker()
@@ -56,6 +61,7 @@ def YOLO_programme():
             tracks = tracker.update(detections, frame)
 
             post_telemetry(
+                _last_metrics_post,
                 workers_active=len(workers),
                 lpr_queue_size=lpr_task_q.qsize(),
                 active_tracks=len(tracks)
@@ -67,7 +73,23 @@ def YOLO_programme():
                 x1,y1,x2,y2 = tr["bbox"]
                 label = tr["label"] if tr["label"] is not None else "obj"
                 conf = float(tr["conf"] or 0.0)  # dashboard
-                post_live(_last_live_sent, LIVE_THROTTLE_SEC, tid, label, conf)  # dashboard
+                post_live(
+                    _last_live_sent,
+                    LIVE_THROTTLE_SEC,
+                    tid,
+                    label,
+                    conf
+                )
+
+                if tid not in seen_tracks:
+                    emit({
+                        "type": "event_opened",
+                        "camera_id": "cam_01",
+                        "track_id": tid,
+                        "object_type": label,
+                        "confidence": conf
+                    })
+                    seen_tracks.add(tid)
 
                 # --- DB: log/update Event ---
                 event_payload = {
@@ -118,6 +140,7 @@ def YOLO_programme():
                         "track_id": tid,
                         "behavior": infer_human_behavior(tr) or None
                     }
+                    emit(person_payload)
 
             # 4) Handle LPR results that workers produced
             while not lpr_result_q.empty():
@@ -129,7 +152,14 @@ def YOLO_programme():
                     "ts": res["ts"]
                 }
                 # Also push the plate to dashboard live stream
-                post_live(_last_live_sent, LIVE_THROTTLE_SEC, tid, "vehicle", float(res["plate_conf"] or 0.0), license_plate=res["plate_text"])
+                post_live(
+                    _last_live_sent,
+                    LIVE_THROTTLE_SEC,
+                    tid,
+                    "vehicle",
+                    float(res["plate_conf"] or 0.0),
+                    license_plate=res["plate_text"]
+                )
 
                 # --- DB: update vehicle row with plate ---
                 event = log_event(tid, "vehicle")

@@ -3,7 +3,7 @@ import time
 from secret import dashboard_base
 
 
-def post_telemetry(workers_active: int, lpr_queue_size: int, active_tracks: int, camera_id="cam_01"):
+def post_telemetry(_last_metrics_post, workers_active: int, lpr_queue_size: int, active_tracks: int, camera_id="cam_01"):
     """Live health and performance stats"""
     global _last_metrics_post
     now = time.time()
