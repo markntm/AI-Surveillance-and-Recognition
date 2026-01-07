@@ -1,6 +1,5 @@
 import cv2
 import queue
-import requests
 import time
 
 from inference_node.JN_OBJ_detection.obj_detector import ObjectDetector
@@ -8,45 +7,13 @@ from inference_node.JN_OBJ_detection.obj_tracker import Tracker
 from inference_node.JN_LP_detection.lpr_worker import LPRWorker
 from inference_node.JN_OBJ_detection.utilities import crop_bbox, extract_dominant_color, infer_human_behavior
 from inference_node.event_out import emit
-from inference_node.const import constants
+from inference_node.dashboard_client import post_live, post_telemetry
+from secret import constants
 
 
 _last_metrics_post = 0
 _last_live_sent = {}  # track_id -> ts
-LIVE_THROTTLE_SEC = 0.5  # avoid spamming the server
-
-
-def post_telemetry(workers_active: int, lpr_queue_size: int, active_tracks: int):
-    global _last_metrics_post
-    now = time.time()
-    if now - _last_metrics_post < 0.8:  # throttle ~1/s
-        return
-    _last_metrics_post = now
-    try:
-        requests.post(f"{DASHBOARD_BASE}/api/ingest/telemetry", json={
-            "workers_active": workers_active,
-            "lpr_queue_size": lpr_queue_size,
-            "active_tracks": active_tracks
-        }, timeout=0.4)
-    except Exception:
-        pass
-
-
-def post_live(track_id: str, label: str, confidence: float, license_plate: str | None = None):
-    now = time.time()
-    last = _last_live_sent.get(track_id, 0)
-    if now - last < LIVE_THROTTLE_SEC and license_plate is None:
-        return
-    _last_live_sent[track_id] = now
-    try:
-        requests.post(f"{DASHBOARD_BASE}/api/ingest/live", json={
-            "track_id": str(track_id),
-            "label": label,
-            "confidence": float(confidence),
-            "license_plate": license_plate
-        }, timeout=0.4)
-    except Exception:
-        pass
+LIVE_THROTTLE_SEC = 1.0  # avoid spamming the server
 
 
 # ---------------- Setup ----------------
@@ -100,7 +67,7 @@ def YOLO_programme():
                 x1,y1,x2,y2 = tr["bbox"]
                 label = tr["label"] if tr["label"] is not None else "obj"
                 conf = float(tr["conf"] or 0.0)  # dashboard
-                post_live(tid, label, conf)  # dashboard
+                post_live(_last_live_sent, LIVE_THROTTLE_SEC, tid, label, conf)  # dashboard
 
                 # --- DB: log/update Event ---
                 event_payload = {
@@ -162,7 +129,7 @@ def YOLO_programme():
                     "ts": res["ts"]
                 }
                 # Also push the plate to dashboard live stream
-                post_live(tid, "vehicle", float(res["plate_conf"] or 0.0), license_plate=res["plate_text"])
+                post_live(_last_live_sent, LIVE_THROTTLE_SEC, tid, "vehicle", float(res["plate_conf"] or 0.0), license_plate=res["plate_text"])
 
                 # --- DB: update vehicle row with plate ---
                 event = log_event(tid, "vehicle")
