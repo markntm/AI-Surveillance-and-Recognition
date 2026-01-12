@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, Enum, DateTime, ForeignKey, Float
+from sqlalchemy import Column, Integer, Float, String, Enum, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -28,7 +28,7 @@ class VehicleFunction(enum.Enum):
 
 
 class Event(Base):
-    """Entre for when something important happens"""
+    """Entry for when something important happens"""
     __tablename__ = 'events'
     id = Column(Integer, primary_key=True)
 

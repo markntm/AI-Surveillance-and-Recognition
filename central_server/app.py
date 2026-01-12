@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, Header, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 import os
 
 from central_server.CC_data.database import engine, Base, SessionLocal
