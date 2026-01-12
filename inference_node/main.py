@@ -15,13 +15,11 @@ _last_metrics_post = 0
 _last_live_sent = {}  # track_id -> ts
 LIVE_THROTTLE_SEC = 1.0  # avoid spamming the server
 
-
+# ---------------- Setup ----------------
 seen_tracks = set()
 vehicle_sent = set()
 person_sent = set()
 
-
-# ---------------- Setup ----------------
 detector = ObjectDetector(constants["YOLO_COCO_PATH"], conf=0.35)
 tracker = Tracker()
 
@@ -55,7 +53,7 @@ def YOLO_programme():
                 break
 
             # 1) Detect objects (COCO)
-            detections = detector.detect(frame)  # list of dicts
+            detections = detector.detect(frame)
 
             # 2) Track (DeepSORT)
             tracks = tracker.update(detections, frame)
@@ -72,7 +70,8 @@ def YOLO_programme():
                 tid = str(tr["track_id"])
                 x1,y1,x2,y2 = tr["bbox"]
                 label = tr["label"] if tr["label"] is not None else "obj"
-                conf = float(tr["conf"] or 0.0)  # dashboard
+                conf = float(tr["conf"] or 0.0)
+                # dashboard
                 post_live(
                     _last_live_sent,
                     LIVE_THROTTLE_SEC,
@@ -81,6 +80,7 @@ def YOLO_programme():
                     conf
                 )
 
+                # --- Start JSON Package ---
                 if tid not in seen_tracks:
                     emit({
                         "type": "event_opened",
@@ -90,22 +90,12 @@ def YOLO_programme():
                         "confidence": conf
                     })
                     seen_tracks.add(tid)
-
-                # --- DB: log/update Event ---
-                event_payload = {
-                    "type": "object_detected",
-                    "camera_id": "cam_01",
-                    "track_id": tid,
-                    "object_type": label,
-                    "confidence": conf
-                }
-                emit(event_payload)
-                print("Sending Event Payload: ", event_payload)
+                    print(f"JSON Package Created: {label}.")
 
                 # Draw box + id
-                cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
+                cv2.rectangle(frame, (x1,y1), (x2,y2), (0, 255 ,0), 2)
                 cv2.putText(frame, f"ID {tid} | {label}", (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
                 # If this track is a vehicle, consider LPR
                 if tr.get("label") in [detector.model.names[i] for i in constants["VEHICLE_CLASS_IDS"]]:
@@ -113,15 +103,18 @@ def YOLO_programme():
                     now = time.time()
                     last = last_lpr_request.get(tid, 0)
 
-                    # --- DB: vehicle info without plate ---
-                    vehicle_payload = {
-                        "type": "vehicle_update",
-                        "camera_id": "cam_01",
-                        "track_id": tid,
-                        "vehicle_type": label,
-                        "primary_color": extract_dominant_color(frame, tr["bbox"])
-                    }
-                    emit(vehicle_payload)
+                    # --- JSON: vehicle info without plate ---
+                    if tid not in vehicle_sent:
+                        vehicle_payload = {
+                            "type": "vehicle_update",
+                            "camera_id": "cam_01",
+                            "track_id": tid,
+                            "vehicle_type": label,
+                            "primary_color": extract_dominant_color(frame, tr["bbox"])
+                        }
+                        emit(vehicle_payload)
+                        vehicle_sent.add(tid)
+                        print("JSON Package: Vehicle without Licence Plate Detected.")
 
                     if now - last > constants["LPR_COOLDOWN_SECONDS"]:
                         # crop vehicle region
@@ -133,14 +126,18 @@ def YOLO_programme():
                             except queue.Full:
                                 pass
 
-                elif tr.get("label") == "person":
+                # --- JSON: person info ---
+                elif tr.get("label") == "person" and tid not in person_sent:
                     person_payload = {
                         "type": "person_update",
                         "camera_id": "cam_01",
                         "track_id": tid,
-                        "behavior": infer_human_behavior(tr) or None
+                        "behavior": infer_human_behavior(tr) or "unknown",
+                        "confidence": conf
                     }
                     emit(person_payload)
+                    person_sent.add(tid)
+                    print("JSON Package: Person Detected.")
 
             # 4) Handle LPR results that workers produced
             while not lpr_result_q.empty():
@@ -161,11 +158,15 @@ def YOLO_programme():
                     license_plate=res["plate_text"]
                 )
 
-                # --- DB: update vehicle row with plate ---
-                event = log_event(tid, "vehicle")
-                existing = plate_cache[tid]
-                log_vehicle(event, None, None, existing["text"], VehicleBehavior.unknown)
-
+                # --- JSON: update vehicle row with license plate ---
+                plate_payload = {
+                    "type": "plate_detected",
+                    "camera_id": "cam_01",
+                    "track_id": tid,
+                    "plate_text": res["plate_text"],
+                    "plate_confidence": res["plate_conf"]
+                }
+                emit(plate_payload)
 
             # 5) Overlay plate_cache on frame (for tracks still visible)
             for tid, data in list(plate_cache.items()):
@@ -179,13 +180,28 @@ def YOLO_programme():
                 if track_bbox:
                     x1,y1,x2,y2 = track_bbox
                     txt = f"{data['text']} ({data['conf']:.2f})"
-                    cv2.putText(frame, txt, (x1, y2 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,0), 2)
+                    cv2.putText(frame, txt, (x1, y2 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255 ,0), 2)
 
             # 6) FPS and display
             fps = 1.0 / max(1e-6, time.time() - t0)
-            cv2.putText(frame, f"FPS: {fps:.2f}", (20,30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,255), 2)
+            cv2.putText(frame, f"FPS: {fps:.2f}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
             cv2.imshow("Vehicle + LPR (parallel)", frame)
 
+            active_ids = {str(tr["track_id"]) for tr in tracks}
+            ended_tracks = seen_tracks - active_ids
+
+            # --- JSON: Closes Package ---
+            for tid in ended_tracks:
+                emit({
+                    "type": "event_closed",
+                    "camera_id": "cam_01",
+                    "track_id": tid
+                })
+                seen_tracks.remove(tid)
+                vehicle_sent.discard(tid)
+                person_sent.discard(tid)
+
+            # ends video input
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 

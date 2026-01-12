@@ -1,13 +1,13 @@
 import time
 import requests
+from secret import server_base
 
-SERVER_BASE = "http://127.0.0.1:8000"
 
 def emit(event: dict):
     event.setdefault("timestamp", time.time())
     try:
         requests.post(
-            f"{SERVER_BASE}/api/ingest/event",
+            f"{server_base}/api/ingest/event",
             json=event,
             timeout=0.3
         )

@@ -1,17 +1,16 @@
 import requests
 import time
-from secret import dashboard_base
+from secret import server_base
 
 
 def post_telemetry(_last_metrics_post, workers_active: int, lpr_queue_size: int, active_tracks: int, camera_id="cam_01"):
     """Live health and performance stats"""
-    global _last_metrics_post
     now = time.time()
-    if now - _last_metrics_post < 0.8:  # throttle ~1/s
+    if now - _last_metrics_post < 0.8:
         return
     _last_metrics_post = now
     try:
-        requests.post(f"{dashboard_base}/api/ingest/telemetry", json={
+        requests.post(f"{server_base}/api/ingest/telemetry", json={
             "camera_id": camera_id,
             "workers_active": workers_active,
             "lpr_queue_size": lpr_queue_size,
@@ -29,7 +28,7 @@ def post_live(_last_live_sent, live_throttle_sec, track_id: str, label: str, con
         return
     _last_live_sent[track_id] = now
     try:
-        requests.post(f"{dashboard_base}/api/ingest/live", json={
+        requests.post(f"{server_base}/api/ingest/live", json={
             "camera_id": camera_id,
             "track_id": str(track_id),
             "label": label,
