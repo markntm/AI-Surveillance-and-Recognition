@@ -1,6 +1,6 @@
 import requests
 import time
-from secret import server_base
+from config.secret import server_base
 
 
 def post_telemetry(_last_metrics_post, workers_active: int, lpr_queue_size: int, active_tracks: int, camera_id="cam_01"):

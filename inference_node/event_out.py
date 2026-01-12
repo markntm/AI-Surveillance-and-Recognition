@@ -1,6 +1,6 @@
 import time
 import requests
-from secret import server_base
+from config.secret import server_base
 
 
 def emit(event: dict):

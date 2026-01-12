@@ -8,7 +8,7 @@ from inference_node.JN_LP_detection.lpr_worker import LPRWorker
 from inference_node.JN_OBJ_detection.utilities import crop_bbox, extract_dominant_color, infer_human_behavior
 from inference_node.event_out import emit
 from inference_node.dashboard_client import post_live, post_telemetry
-from secret import constants
+from config.secret import constants
 
 
 _last_metrics_post = 0

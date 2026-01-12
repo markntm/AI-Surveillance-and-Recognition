@@ -4,16 +4,16 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 import os
 
-from CC_data.database import engine, Base, SessionLocal
-from CC_data.event_log import *
-from CC_data.models import Behavior, Recognition, VehicleFunction, Event
-from CC_data.schemas import EventIn
-from secret import dev_key, allowed_IP
+from central_server.CC_data.database import engine, Base, SessionLocal
+from central_server.CC_data.event_log import *
+from central_server.CC_data.models import Behavior, Recognition, VehicleFunction, Event
+from central_server.CC_data.schemas import EventIn
+from config.secret import dev_key, allowed_IP
 
 
 app = FastAPI(title="Surveillance Dashboard", version="0.1")
-app.mount("/static", StaticFiles(directory="CC_dashboard/static"), name="static")
-templates = Jinja2Templates(directory="CC_dashboard/templates")
+app.mount("/static", StaticFiles(directory="central_server/CC_dashboard/static"), name="static")
+templates = Jinja2Templates(directory="central_server/CC_dashboard/templates")
 Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
