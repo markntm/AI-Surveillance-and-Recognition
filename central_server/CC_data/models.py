@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 
-from central_server.CC_data.database import Base
+from CC_data.database import Base
 
 
 class Recognition(enum.Enum):
