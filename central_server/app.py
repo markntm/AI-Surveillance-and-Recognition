@@ -5,10 +5,10 @@ from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
 
-from central_server.CC_data.database import engine, Base, SessionLocal
-from central_server.CC_data.event_log import *
-from central_server.CC_data.models import Behavior, Recognition, VehicleFunction, Event
-from central_server.CC_data.schemas import EventIn
+from CC_data.database import engine, Base, SessionLocal
+from CC_data.event_log import *
+from CC_data.models import Behavior, Recognition, VehicleFunction, Event
+from CC_data.schemas import EventIn
 from config.secret import dev_key, allowed_IP
 
 

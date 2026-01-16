@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 
-from central_server.CC_data.models import Event, DetectedObject, Vehicle, Recognition, Behavior, VehicleFunction
+from CC_data.models import Event, DetectedObject, Vehicle, Recognition, Behavior, VehicleFunction
 
 
 # ---------- Write ----------
